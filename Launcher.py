@@ -20,10 +20,11 @@ class TerrariaLauncher:
         self.root = root
         self.steam_command = steam_command
         self.root.title("Terraria High FPS Launcher")
-        self.root.geometry("400x400")
+        self.root.geometry("400x480")
         self.root.resizable(False, False)
         
         self.game_dir = self.load_game_dir()
+        self.max_fps = self.load_max_fps()
 
         self.setup_ui()
         self.check_status()
@@ -89,12 +90,31 @@ class TerrariaLauncher:
             else:
                 messagebox.showerror("Error", "Terraria.exe not found in that folder. Please try again.")
 
-    def save_game_dir(self, path):
+    def load_max_fps(self):
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r') as f:
+                    return json.load(f).get("max_fps", 500)
+            except:
+                pass
+        return 500
+
+    def save_config(self):
         try:
+            config = {}
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE, 'r') as f:
+                    config = json.load(f)
+            config["game_dir"] = self.game_dir
+            config["max_fps"] = self.max_fps
             with open(CONFIG_FILE, 'w') as f:
-                json.dump({"game_dir": path}, f)
+                json.dump(config, f)
         except:
             pass
+
+    def save_game_dir(self, path):
+        self.game_dir = path
+        self.save_config()
 
     def change_directory(self):
         new_dir = filedialog.askdirectory(title="Select Terraria Directory")
@@ -124,16 +144,30 @@ class TerrariaLauncher:
         self.btn_launch_highfps = ttk.Button(main_frame, text="Launch High FPS (True Smooth)", command=self.launch_highfps)
         self.btn_launch_highfps.pack(fill=tk.X, pady=5)
 
+        self.btn_launch_gpubatch = ttk.Button(main_frame, text="Launch High FPS + GPU Batch (Beta)", command=self.launch_gpubatch)
+        self.btn_launch_gpubatch.pack(fill=tk.X, pady=5)
+
         self.btn_launch_vanilla = ttk.Button(main_frame, text="Launch Vanilla (60 FPS)", command=self.launch_vanilla)
         self.btn_launch_vanilla.pack(fill=tk.X, pady=5)
 
         self.btn_patch = ttk.Button(main_frame, text="Update/Create Patch", command=self.create_patch)
         self.btn_patch.pack(fill=tk.X, pady=5)
 
+        self.btn_gpubatch_patch = ttk.Button(main_frame, text="Update/Create GPU Batch Patch", command=self.create_gpubatch_patch)
+        self.btn_gpubatch_patch.pack(fill=tk.X, pady=5)
+
         ttk.Separator(main_frame, orient='horizontal').pack(fill=tk.X, pady=5)
         
         self.btn_change_dir = ttk.Button(main_frame, text="Change Game Directory", command=self.change_directory)
         self.btn_change_dir.pack(fill=tk.X, pady=5)
+
+        fps_frame = ttk.Frame(main_frame)
+        fps_frame.pack(fill=tk.X, pady=2)
+        ttk.Label(fps_frame, text="Max FPS:").pack(side=tk.LEFT)
+        self.fps_var = tk.StringVar(value=str(self.max_fps))
+        fps_entry = ttk.Entry(fps_frame, textvariable=self.fps_var, width=6)
+        fps_entry.pack(side=tk.LEFT, padx=5)
+        ttk.Label(fps_frame, text="(0 = unlimited, default 500)", font=("Helvetica", 8)).pack(side=tk.LEFT)
 
         if self.steam_command:
             ttk.Label(main_frame, text="Mode: Steam Integration Active", foreground="blue").pack(pady=5)
@@ -185,52 +219,122 @@ class TerrariaLauncher:
 
         threading.Thread(target=run).start()
 
+    def create_gpubatch_patch(self):
+        def run():
+            try:
+                self.status_label.config(text="Status: Creating GPU Batch Patch...", foreground="blue")
+                vanilla_bak = os.path.join(self.game_dir, "Terraria.exe.vanilla")
+                target_exe  = os.path.join(self.game_dir, "Terraria.exe")
+
+                if os.path.exists(vanilla_bak):
+                    source_exe = vanilla_bak
+                else:
+                    source_exe = target_exe
+                    shutil.copy2(target_exe, vanilla_bak)
+
+                output_exe       = os.path.join(self.game_dir, "Terraria.exe.gpubatch")
+                logic_dll_src    = os.path.join(WORK_DIR, "GpuBatchLogic.dll")
+                logic_dll_dst    = os.path.join(self.game_dir, "GpuBatchLogic.dll")
+
+                if not os.path.exists(logic_dll_src):
+                    messagebox.showerror("Error", "GpuBatchLogic.dll not found.\nBuild it first with mcs.")
+                    self.status_label.config(text="Status: GPU Batch DLL Missing", foreground="red")
+                    return
+
+                shutil.copy2(logic_dll_src, logic_dll_dst)
+
+                cmd = [PATCHER_EXE, source_exe, output_exe, logic_dll_dst, "--gpu-batch"]
+                if not IS_WINDOWS:
+                    cmd.insert(0, "mono")
+
+                result = subprocess.run(cmd, capture_output=True, text=True)
+
+                if "Success!" in result.stdout:
+                    messagebox.showinfo("Success", "GPU Batch patch created successfully!")
+                    self.status_label.config(text="Status: GPU Batch Patch Updated", foreground="green")
+                else:
+                    messagebox.showerror("Error", f"GPU Batch patching failed:\n{result.stdout}\n{result.stderr}")
+                    self.status_label.config(text="Status: GPU Batch Patch Failed", foreground="red")
+            except Exception as e:
+                messagebox.showerror("Error", str(e))
+
+        threading.Thread(target=run).start()
+
     def launch_vanilla(self):
         self.launch(use_highfps=False)
 
     def launch_highfps(self):
         self.launch(use_highfps=True)
 
-    def launch(self, use_highfps):
-        exe_path = os.path.join(self.game_dir, "Terraria.exe")
+    def launch_gpubatch(self):
+        self.launch(use_highfps=True, use_gpubatch=True)
+
+    def launch(self, use_highfps, use_gpubatch=False):
+        exe_path    = os.path.join(self.game_dir, "Terraria.exe")
         vanilla_bak = os.path.join(self.game_dir, "Terraria.exe.vanilla")
         highfps_exe = os.path.join(self.game_dir, "Terraria.exe.highfps")
+        gpubatch_exe = os.path.join(self.game_dir, "Terraria.exe.gpubatch")
+        fna_path    = os.path.join(self.game_dir, "FNA.dll")
+        fna_vanilla = os.path.join(self.game_dir, "FNA.dll.vanilla")
+        fna_gpubatch = os.path.join(self.game_dir, "FNA.dll.gpubatch")
 
-        # 1. Backup if needed (extra safety)
+        # 1. Backup if needed
         if not os.path.exists(vanilla_bak):
             shutil.copy2(exe_path, vanilla_bak)
+        if not os.path.exists(fna_vanilla):
+            shutil.copy2(fna_path, fna_vanilla)
 
-        # 2. Prepare EXE
-        if use_highfps:
+        # 2. Prepare EXE + FNA.dll
+        if use_gpubatch:
+            if not os.path.exists(gpubatch_exe) or not os.path.exists(fna_gpubatch):
+                self.create_gpubatch_patch()
+                return
+            shutil.copy2(gpubatch_exe, exe_path)
+            shutil.copy2(fna_gpubatch, fna_path)
+            logic_dll_src = os.path.join(WORK_DIR, "GpuBatchLogic.dll")
+            logic_dll_dst = os.path.join(self.game_dir, "GpuBatchLogic.dll")
+            if os.path.exists(logic_dll_src):
+                shutil.copy2(logic_dll_src, logic_dll_dst)
+        elif use_highfps:
             if not os.path.exists(highfps_exe):
-                # Auto-patch if missing
                 self.create_patch()
                 return
             shutil.copy2(highfps_exe, exe_path)
-            # Always sync the logic DLL so it matches the patched exe
+            shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA for non-gpu mode
             logic_dll_src = os.path.join(WORK_DIR, "HighFPSLogic.dll")
             logic_dll_dst = os.path.join(self.game_dir, "HighFPSLogic.dll")
             if os.path.exists(logic_dll_src):
                 shutil.copy2(logic_dll_src, logic_dll_dst)
         else:
             shutil.copy2(vanilla_bak, exe_path)
+            shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA
 
         # 3. Launch
+        try:
+            self.max_fps = int(self.fps_var.get())
+        except ValueError:
+            self.max_fps = 500
+        self.save_config()
+
+        launch_env = os.environ.copy()
+        if use_highfps:
+            launch_env["TERRARIA_MAX_FPS"] = str(self.max_fps)
+
         self.status_label.config(text="Status: Game Running...", foreground="blue")
         try:
             if self.steam_command:
                 # Steam Mode: Execute the command Steam gave us
                 print("DEBUG steam_command:", self.steam_command)
-                subprocess.Popen(self.steam_command, cwd=self.game_dir)
+                subprocess.Popen(self.steam_command, cwd=self.game_dir, env=launch_env)
             else:
                 # CLI Mode: Run the standard launcher
                 if IS_WINDOWS:
-                    subprocess.Popen([exe_path], cwd=self.game_dir)
+                    subprocess.Popen([exe_path], cwd=self.game_dir, env=launch_env)
                 elif IS_MAC:
                     mac_launcher = os.path.normpath(os.path.join(self.game_dir, "..", "MacOS", "Terraria"))
-                    subprocess.Popen([mac_launcher], cwd=self.game_dir)
+                    subprocess.Popen([mac_launcher], cwd=self.game_dir, env=launch_env)
                 else:
-                    subprocess.Popen([os.path.join(self.game_dir, "Terraria")], cwd=self.game_dir)
+                    subprocess.Popen([os.path.join(self.game_dir, "Terraria")], cwd=self.game_dir, env=launch_env)
             
             # Close launcher after launching game to avoid confusion
             self.root.destroy()

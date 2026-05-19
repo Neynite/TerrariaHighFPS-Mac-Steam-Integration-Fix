@@ -8,6 +8,19 @@ namespace HighFPSLogic
 {
     public static class FPSManager
     {
+        // Frame cap: read once from env var TERRARIA_MAX_FPS (set by launcher)
+        private static int _frameCap = 500;
+        private static bool _frameCapInit = false;
+        private static System.Diagnostics.Stopwatch _frameTimer = System.Diagnostics.Stopwatch.StartNew();
+
+        private static void EnsureInit()
+        {
+            if (_frameCapInit) return;
+            _frameCapInit = true;
+            string val = System.Environment.GetEnvironmentVariable("TERRARIA_MAX_FPS");
+            if (int.TryParse(val, out int cap) && cap > 0) _frameCap = cap;
+        }
+
         private static Vector2[] _origPlayerPos      = new Vector2[256];
         private static float[]   _origPlayerItemRot  = new float[256];
         private static float[]   _lastPlayerItemRot  = new float[256];
@@ -71,6 +84,22 @@ namespace HighFPSLogic
 
         public static void PreDraw()
         {
+            EnsureInit();
+
+            // Software frame cap: sleep+spin to target frame time, prevents GPU queue flooding
+            if (_frameCap > 0)
+            {
+                long target = System.Diagnostics.Stopwatch.Frequency / _frameCap;
+                long remaining = target - _frameTimer.ElapsedTicks;
+                if (remaining > 0)
+                {
+                    if (remaining > System.Diagnostics.Stopwatch.Frequency / 1000)
+                        System.Threading.Thread.Sleep((int)(remaining * 1000 / System.Diagnostics.Stopwatch.Frequency));
+                    while (_frameTimer.ElapsedTicks < target) {}
+                }
+                _frameTimer.Restart();
+            }
+
             _didSave = false;
 
             int curMode = (int)Main.FrameSkipMode;
