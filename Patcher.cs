@@ -68,6 +68,18 @@ public class HighFPSPatcher
 
                 // Always load the logic DLL (HighFPSLogic.cs + optionally GpuBatcher.cs)
                 AssemblyDefinition logicAssembly = AssemblyDefinition.ReadAssembly(logicDllPath);
+
+                // Fix FNA version reference in the logic DLL to match this platform's FNA.
+                // HighFPSLogic.dll is compiled on Linux against FNA 26.x; Windows ships a
+                // different FNA version. Mismatched references cause FileNotFoundException at runtime.
+                var targetFnaRef = module.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
+                var logicFnaRef  = logicAssembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
+                if (targetFnaRef != null && logicFnaRef != null && logicFnaRef.Version != targetFnaRef.Version)
+                {
+                    Console.WriteLine("Fixing FNA reference: " + logicFnaRef.Version + " -> " + targetFnaRef.Version);
+                    logicFnaRef.Version = targetFnaRef.Version;
+                    logicAssembly.Write(logicDllPath);
+                }
                 TypeDefinition fpsManagerType    = logicAssembly.MainModule.Types.First(t => t.Name == "FPSManager");
 
                 MethodReference preDrawMethod     = module.ImportReference(fpsManagerType.Methods.First(m => m.Name == "PreDraw"));
