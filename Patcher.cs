@@ -12,6 +12,8 @@ class FallbackResolver : DefaultAssemblyResolver
         try { return base.Resolve(name, parameters); }
         catch (AssemblyResolutionException) { return null; }
     }
+
+    public void Register(AssemblyDefinition asm) => RegisterAssembly(asm);
 }
 
 public class HighFPSPatcher
@@ -36,6 +38,11 @@ public class HighFPSPatcher
 
         var resolver = new FallbackResolver();
         resolver.AddSearchDirectory(Path.GetDirectoryName(inputPath));
+
+        // Pre-register FNA.dll so Cecil can resolve XNA types on Windows
+        string fnaPath = Path.Combine(Path.GetDirectoryName(inputPath), "FNA.dll");
+        if (File.Exists(fnaPath))
+            resolver.Register(AssemblyDefinition.ReadAssembly(fnaPath));
 
         ReaderParameters readerParams = new ReaderParameters { AssemblyResolver = resolver };
 
