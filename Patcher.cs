@@ -204,6 +204,16 @@ public class HighFPSPatcher
                     else Console.WriteLine("  Terraria.Lighting not found, skipping");
                 }
 
+                // Clear parameter default values whose types can't be resolved.
+                // Cecil calls CheckedResolve() on these during Write() which crashes on Windows
+                // when the assembly resolver can't find FNA. The defaults are compile-time
+                // metadata only — the JIT never reads them at runtime.
+                foreach (var t in module.GetTypes())
+                    foreach (var m in t.Methods)
+                        foreach (var p in m.Parameters)
+                            if (p.HasConstant && p.ParameterType.Resolve() == null)
+                            { p.HasConstant = false; p.Constant = null; }
+
                 Console.WriteLine("Saving Terraria patch to " + outputPath);
                 assembly.Write(outputPath);
             }
