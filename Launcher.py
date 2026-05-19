@@ -281,7 +281,7 @@ class TerrariaLauncher:
         # 1. Backup if needed
         if not os.path.exists(vanilla_bak):
             shutil.copy2(exe_path, vanilla_bak)
-        if not os.path.exists(fna_vanilla):
+        if use_gpubatch and os.path.exists(fna_path) and not os.path.exists(fna_vanilla):
             shutil.copy2(fna_path, fna_vanilla)
 
         # 2. Prepare EXE + FNA.dll
@@ -300,14 +300,16 @@ class TerrariaLauncher:
                 self.create_patch()
                 return
             shutil.copy2(highfps_exe, exe_path)
-            shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA for non-gpu mode
+            if os.path.exists(fna_vanilla):
+                shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA for non-gpu mode
             logic_dll_src = os.path.join(WORK_DIR, "HighFPSLogic.dll")
             logic_dll_dst = os.path.join(self.game_dir, "HighFPSLogic.dll")
             if os.path.exists(logic_dll_src):
                 shutil.copy2(logic_dll_src, logic_dll_dst)
         else:
             shutil.copy2(vanilla_bak, exe_path)
-            shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA
+            if os.path.exists(fna_vanilla):
+                shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA
 
         # 3. Launch
         try:

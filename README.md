@@ -6,7 +6,7 @@ A standalone patcher for vanilla **Terraria 1.4.5** that adds high-FPS interpola
 
 | Platform | Supported |
 |---|---|
-| 🪟 Windows | ✅ |
+| 🪟 Windows | ✅(Partially) |
 | 🍎 macOS | ✅(Partially) |
 | 🐧 Linux | ✅ |
 
@@ -40,6 +40,8 @@ The patcher uses Mono.Cecil to inject IL code directly into `Terraria.exe`. It h
 The launcher backs up your original `Terraria.exe` as `Terraria.exe.vanilla` before doing anything, so you can always restore it.
 
 ## Buttons
+
+> **NOTICE:** GPU MODE only works on LINUX
 
 | Button | What it does |
 |---|---|
