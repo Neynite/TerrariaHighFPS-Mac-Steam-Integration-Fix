@@ -209,6 +209,8 @@ class TerrariaLauncher:
                 result = subprocess.run(cmd, capture_output=True, text=True)
                 
                 if "Success!" in result.stdout:
+                    # Copy version-fixed DLL back so the launch-time copy stays correct
+                    shutil.copy2(logic_dll_dst, logic_dll_src)
                     messagebox.showinfo("Success", "High FPS patch created successfully!\n(Uses Native Accumulator Logic)")
                     self.status_label.config(text="Status: Patch Updated", foreground="green")
                 else:
@@ -250,6 +252,8 @@ class TerrariaLauncher:
                 result = subprocess.run(cmd, capture_output=True, text=True)
 
                 if "Success!" in result.stdout:
+                    # Copy version-fixed DLL back so the launch-time copy stays correct
+                    shutil.copy2(logic_dll_dst, logic_dll_src)
                     messagebox.showinfo("Success", "GPU Batch patch created successfully!")
                     self.status_label.config(text="Status: GPU Batch Patch Updated", foreground="green")
                 else:
