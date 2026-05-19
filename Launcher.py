@@ -295,10 +295,6 @@ class TerrariaLauncher:
                 return
             shutil.copy2(gpubatch_exe, exe_path)
             shutil.copy2(fna_gpubatch, fna_path)
-            logic_dll_src = os.path.join(WORK_DIR, "GpuBatchLogic.dll")
-            logic_dll_dst = os.path.join(self.game_dir, "GpuBatchLogic.dll")
-            if os.path.exists(logic_dll_src):
-                shutil.copy2(logic_dll_src, logic_dll_dst)
         elif use_highfps:
             if not os.path.exists(highfps_exe):
                 self.create_patch()
@@ -306,10 +302,6 @@ class TerrariaLauncher:
             shutil.copy2(highfps_exe, exe_path)
             if os.path.exists(fna_vanilla):
                 shutil.copy2(fna_vanilla, fna_path)  # restore vanilla FNA for non-gpu mode
-            logic_dll_src = os.path.join(WORK_DIR, "HighFPSLogic.dll")
-            logic_dll_dst = os.path.join(self.game_dir, "HighFPSLogic.dll")
-            if os.path.exists(logic_dll_src):
-                shutil.copy2(logic_dll_src, logic_dll_dst)
         else:
             shutil.copy2(vanilla_bak, exe_path)
             if os.path.exists(fna_vanilla):
