@@ -18,7 +18,12 @@ class FallbackResolver : DefaultAssemblyResolver
                 var asm = AssemblyDefinition.ReadAssembly(f);
                 RegisterAssembly(asm);
                 _bySimpleName[asm.Name.Name] = asm;
-            } catch { }
+                if (asm.Name.Name == "FNA")
+                    Console.WriteLine("  [resolver] preloaded FNA: " + asm.Name.FullName);
+            } catch (Exception ex) {
+                if (Path.GetFileNameWithoutExtension(f).Equals("FNA", StringComparison.OrdinalIgnoreCase))
+                    Console.WriteLine("  [resolver] FAILED to preload FNA.dll: " + ex.Message);
+            }
         }
     }
 
