@@ -7,13 +7,28 @@ using System.IO;
 
 class FallbackResolver : DefaultAssemblyResolver
 {
+    readonly Dictionary<string, AssemblyDefinition> _bySimpleName = new Dictionary<string, AssemblyDefinition>();
+
+    public void PreloadDirectory(string dir)
+    {
+        AddSearchDirectory(dir);
+        foreach (string f in Directory.GetFiles(dir, "*.dll"))
+        {
+            try {
+                var asm = AssemblyDefinition.ReadAssembly(f);
+                RegisterAssembly(asm);
+                _bySimpleName[asm.Name.Name] = asm;
+            } catch { }
+        }
+    }
+
     public override AssemblyDefinition Resolve(AssemblyNameReference name, ReaderParameters parameters)
     {
         try { return base.Resolve(name, parameters); }
-        catch (AssemblyResolutionException) { return null; }
+        catch (AssemblyResolutionException) { }
+        if (_bySimpleName.TryGetValue(name.Name, out var asm)) return asm;
+        return null;
     }
-
-    public void Register(AssemblyDefinition asm) => RegisterAssembly(asm);
 }
 
 public class HighFPSPatcher
@@ -37,12 +52,7 @@ public class HighFPSPatcher
         bool   gpuMode     = args.Length >= 4 && args[3] == "--gpu-batch";
 
         var resolver = new FallbackResolver();
-        resolver.AddSearchDirectory(Path.GetDirectoryName(inputPath));
-
-        // Pre-register FNA.dll so Cecil can resolve XNA types on Windows
-        string fnaPath = Path.Combine(Path.GetDirectoryName(inputPath), "FNA.dll");
-        if (File.Exists(fnaPath))
-            resolver.Register(AssemblyDefinition.ReadAssembly(fnaPath));
+        resolver.PreloadDirectory(Path.GetDirectoryName(inputPath));
 
         ReaderParameters readerParams = new ReaderParameters { AssemblyResolver = resolver };
 
