@@ -67,7 +67,9 @@ public class HighFPSPatcher
                 ModuleDefinition module = assembly.MainModule;
 
                 // Always load the logic DLL (HighFPSLogic.cs + optionally GpuBatcher.cs)
-                AssemblyDefinition logicAssembly = AssemblyDefinition.ReadAssembly(logicDllPath);
+                // InMemory=true releases the file handle so we can rewrite the DLL in place.
+                AssemblyDefinition logicAssembly = AssemblyDefinition.ReadAssembly(
+                    logicDllPath, new ReaderParameters { InMemory = true });
 
                 // Fix FNA version reference in the logic DLL to match this platform's FNA.
                 // HighFPSLogic.dll is compiled on Linux against FNA 26.x; Windows ships a
