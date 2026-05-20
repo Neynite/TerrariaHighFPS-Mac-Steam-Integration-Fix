@@ -136,7 +136,20 @@ public class HighFPSPatcher
                     logicChanged = true;
                 }
 
-                if (logicChanged) logicAssembly.Write(logicDllPath);
+                if (logicChanged) {
+                    string tmp = logicDllPath + ".tmp";
+                    logicAssembly.Write(tmp);
+                    logicAssembly.Dispose();
+                    // Replace original with the rewritten copy. Retry briefly in case AV / Explorer
+                    // momentarily holds the original open.
+                    Exception lastErr = null;
+                    for (int attempt = 0; attempt < 10; attempt++) {
+                        try { File.Delete(logicDllPath); File.Move(tmp, logicDllPath); lastErr = null; break; }
+                        catch (Exception ex) { lastErr = ex; System.Threading.Thread.Sleep(200); }
+                    }
+                    if (lastErr != null) throw lastErr;
+                    Console.WriteLine("Wrote rewritten logic DLL.");
+                }
                 TypeDefinition fpsManagerType    = logicAssembly.MainModule.Types.First(t => t.Name == "FPSManager");
 
                 MethodReference preDrawMethod     = module.ImportReference(fpsManagerType.Methods.First(m => m.Name == "PreDraw"));
