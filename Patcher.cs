@@ -74,11 +74,25 @@ public class HighFPSPatcher
                 // different FNA version. Mismatched references cause FileNotFoundException at runtime.
                 var targetFnaRef = module.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
                 var logicFnaRef  = logicAssembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
-                if (targetFnaRef != null && logicFnaRef != null && logicFnaRef.Version != targetFnaRef.Version)
+                Console.WriteLine("Target FNA ref:  " + (targetFnaRef != null ? targetFnaRef.FullName : "<none>"));
+                Console.WriteLine("Logic  FNA ref:  " + (logicFnaRef  != null ? logicFnaRef.FullName  : "<none>"));
+                if (targetFnaRef != null && logicFnaRef != null)
                 {
-                    Console.WriteLine("Fixing FNA reference: " + logicFnaRef.Version + " -> " + targetFnaRef.Version);
-                    logicFnaRef.Version = targetFnaRef.Version;
-                    logicAssembly.Write(logicDllPath);
+                    bool changed = false;
+                    if (logicFnaRef.Version != targetFnaRef.Version)
+                    { logicFnaRef.Version = targetFnaRef.Version; changed = true; }
+                    var tgtPk = targetFnaRef.PublicKeyToken ?? new byte[0];
+                    var lgcPk = logicFnaRef.PublicKeyToken  ?? new byte[0];
+                    if (!tgtPk.SequenceEqual(lgcPk))
+                    { logicFnaRef.PublicKeyToken = targetFnaRef.PublicKeyToken; changed = true; }
+                    if (logicFnaRef.Culture != targetFnaRef.Culture)
+                    { logicFnaRef.Culture = targetFnaRef.Culture; changed = true; }
+                    if (changed)
+                    {
+                        Console.WriteLine("Fixed FNA reference -> " + logicFnaRef.FullName);
+                        logicAssembly.Write(logicDllPath);
+                    }
+                    else Console.WriteLine("FNA reference already matches; no fix needed.");
                 }
                 TypeDefinition fpsManagerType    = logicAssembly.MainModule.Types.First(t => t.Name == "FPSManager");
 

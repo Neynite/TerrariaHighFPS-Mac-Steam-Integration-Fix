@@ -207,7 +207,12 @@ class TerrariaLauncher:
                     cmd.insert(0, "mono")
                     
                 result = subprocess.run(cmd, capture_output=True, text=True)
-                
+                try:
+                    with open(os.path.join(WORK_DIR, "patcher.log"), "w") as logf:
+                        logf.write("=== STDOUT ===\n" + result.stdout + "\n=== STDERR ===\n" + result.stderr)
+                except Exception:
+                    pass
+
                 if "Success!" in result.stdout:
                     # Copy version-fixed DLL back so the launch-time copy stays correct
                     shutil.copy2(logic_dll_dst, logic_dll_src)
