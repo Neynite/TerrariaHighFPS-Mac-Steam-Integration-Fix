@@ -73,27 +73,68 @@ public class HighFPSPatcher
                 // HighFPSLogic.dll is compiled on Linux against FNA 26.x; Windows ships a
                 // different FNA version. Mismatched references cause FileNotFoundException at runtime.
                 var targetFnaRef = module.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
-                var logicFnaRef  = logicAssembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
-                Console.WriteLine("Target FNA ref:  " + (targetFnaRef != null ? targetFnaRef.FullName : "<none>"));
-                Console.WriteLine("Logic  FNA ref:  " + (logicFnaRef  != null ? logicFnaRef.FullName  : "<none>"));
-                if (targetFnaRef != null && logicFnaRef != null)
+                var targetXnaCore = module.AssemblyReferences.FirstOrDefault(r => r.Name == "Microsoft.Xna.Framework");
+                var targetXnaGame = module.AssemblyReferences.FirstOrDefault(r => r.Name == "Microsoft.Xna.Framework.Game");
+                var targetXnaGfx  = module.AssemblyReferences.FirstOrDefault(r => r.Name == "Microsoft.Xna.Framework.Graphics");
+                var logicFnaRef   = logicAssembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.Name == "FNA");
+                Console.WriteLine("Target FNA ref:       " + (targetFnaRef  != null ? targetFnaRef.FullName  : "<none>"));
+                Console.WriteLine("Target XNA core ref:  " + (targetXnaCore != null ? targetXnaCore.FullName : "<none>"));
+                Console.WriteLine("Target XNA gfx ref:   " + (targetXnaGfx  != null ? targetXnaGfx.FullName  : "<none>"));
+                Console.WriteLine("Logic  FNA ref:       " + (logicFnaRef   != null ? logicFnaRef.FullName   : "<none>"));
+
+                bool logicChanged = false;
+                if (logicFnaRef != null && targetFnaRef != null)
                 {
-                    bool changed = false;
+                    // FNA <-> FNA: normalize version, public key token, culture
                     if (logicFnaRef.Version != targetFnaRef.Version)
-                    { logicFnaRef.Version = targetFnaRef.Version; changed = true; }
+                    { logicFnaRef.Version = targetFnaRef.Version; logicChanged = true; }
                     var tgtPk = targetFnaRef.PublicKeyToken ?? new byte[0];
                     var lgcPk = logicFnaRef.PublicKeyToken  ?? new byte[0];
                     if (!tgtPk.SequenceEqual(lgcPk))
-                    { logicFnaRef.PublicKeyToken = targetFnaRef.PublicKeyToken; changed = true; }
+                    { logicFnaRef.PublicKeyToken = targetFnaRef.PublicKeyToken; logicChanged = true; }
                     if (logicFnaRef.Culture != targetFnaRef.Culture)
-                    { logicFnaRef.Culture = targetFnaRef.Culture; changed = true; }
-                    if (changed)
-                    {
-                        Console.WriteLine("Fixed FNA reference -> " + logicFnaRef.FullName);
-                        logicAssembly.Write(logicDllPath);
-                    }
-                    else Console.WriteLine("FNA reference already matches; no fix needed.");
+                    { logicFnaRef.Culture = targetFnaRef.Culture; logicChanged = true; }
+                    if (logicChanged) Console.WriteLine("Normalized FNA ref -> " + logicFnaRef.FullName);
+                    else              Console.WriteLine("FNA reference already matches; no fix needed.");
                 }
+                else if (logicFnaRef != null && targetFnaRef == null && targetXnaCore != null)
+                {
+                    // Logic built against FNA, target uses XNA: redirect FNA type refs to split XNA assemblies.
+                    Console.WriteLine("Redirecting FNA type references to XNA...");
+                    AssemblyNameReference newCore = new AssemblyNameReference(targetXnaCore.Name, targetXnaCore.Version)
+                        { PublicKeyToken = targetXnaCore.PublicKeyToken, Culture = targetXnaCore.Culture };
+                    AssemblyNameReference newGame = targetXnaGame != null
+                        ? new AssemblyNameReference(targetXnaGame.Name, targetXnaGame.Version)
+                            { PublicKeyToken = targetXnaGame.PublicKeyToken, Culture = targetXnaGame.Culture }
+                        : null;
+                    AssemblyNameReference newGfx = targetXnaGfx != null
+                        ? new AssemblyNameReference(targetXnaGfx.Name, targetXnaGfx.Version)
+                            { PublicKeyToken = targetXnaGfx.PublicKeyToken, Culture = targetXnaGfx.Culture }
+                        : null;
+
+                    logicAssembly.MainModule.AssemblyReferences.Add(newCore);
+                    if (newGame != null) logicAssembly.MainModule.AssemblyReferences.Add(newGame);
+                    if (newGfx  != null) logicAssembly.MainModule.AssemblyReferences.Add(newGfx);
+
+                    int redirected = 0;
+                    foreach (var tref in logicAssembly.MainModule.GetTypeReferences())
+                    {
+                        if (tref.Scope != logicFnaRef) continue;
+                        string ns = tref.Namespace ?? "";
+                        AssemblyNameReference dest;
+                        if (ns.StartsWith("Microsoft.Xna.Framework.Graphics") && newGfx != null) dest = newGfx;
+                        else if (ns == "Microsoft.Xna.Framework" && (tref.Name == "Game" || tref.Name == "GameComponent" || tref.Name == "DrawableGameComponent" || tref.Name == "GameWindow") && newGame != null) dest = newGame;
+                        else dest = newCore;
+                        tref.Scope = dest;
+                        redirected++;
+                    }
+                    Console.WriteLine("Redirected " + redirected + " type reference(s) FNA -> XNA");
+
+                    logicAssembly.MainModule.AssemblyReferences.Remove(logicFnaRef);
+                    logicChanged = true;
+                }
+
+                if (logicChanged) logicAssembly.Write(logicDllPath);
                 TypeDefinition fpsManagerType    = logicAssembly.MainModule.Types.First(t => t.Name == "FPSManager");
 
                 MethodReference preDrawMethod     = module.ImportReference(fpsManagerType.Methods.First(m => m.Name == "PreDraw"));
