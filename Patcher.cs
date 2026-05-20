@@ -15,7 +15,10 @@ class FallbackResolver : DefaultAssemblyResolver
         foreach (string f in Directory.GetFiles(dir, "*.dll"))
         {
             try {
-                var asm = AssemblyDefinition.ReadAssembly(f);
+                // InMemory=true prevents holding the file handle. Without this, the resolver
+                // locks every DLL in the directory — including HighFPSLogic.dll — and we can't
+                // rewrite them later.
+                var asm = AssemblyDefinition.ReadAssembly(f, new ReaderParameters { InMemory = true });
                 RegisterAssembly(asm);
                 _bySimpleName[asm.Name.Name] = asm;
                 if (asm.Name.Name == "FNA")
